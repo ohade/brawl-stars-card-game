@@ -20,6 +20,7 @@ class GameManager:
     def __init__(
         self, 
         screen_size: Tuple[int, int],
+        character_count: int = 5,
         card_size: Tuple[int, int] = (150, 200),
         padding: int = 30
     ) -> None:
@@ -31,6 +32,7 @@ class GameManager:
             padding: Spacing between cards.
         """
         self.screen_size = screen_size
+        self.character_count = character_count
         self.card_size = card_size
         self.padding = padding
         
@@ -65,22 +67,31 @@ class GameManager:
             "Leon": os.path.join(assets_dir, "Brawl Stars Leon Render.png"),
             "Nita": os.path.join(assets_dir, "Brawl Stars Nita and Bruce Costumes.png"),
             "Robo": os.path.join(assets_dir, "Brawl Stars Robo Rumble Brawler.png"),
+            # New character images
+            "Figure1": os.path.join(assets_dir, "ChatGPT Image May 2 2025 (1).png"),
+            "Figure2": os.path.join(assets_dir, "ChatGPT Image May 2 2025 (2).png"),
+            "Figure3": os.path.join(assets_dir, "ChatGPT Image May 2 2025 (3).png"),
+            "Figure4": os.path.join(assets_dir, "ChatGPT Image May 2 2025 (4).png"),
+            "Figure5": os.path.join(assets_dir, "ChatGPT Image May 2 2025.png"),
         }
         
         # Extract just the character names for selection
         characters = list(character_images.keys())
         
-        # For a standard memory game, we need pairs
-        # Use all available characters for our game (which is 5, so 10 cards total)
-        selected_chars = characters  # Use all available characters
+        # For a memory game, we need pairs
+        # Select the requested number of characters based on difficulty
+        # First shuffle to randomize which characters are selected
+        random.shuffle(characters)
+        # Then take only the number requested (minimum of available characters or requested count)
+        selected_chars = characters[:min(self.character_count, len(characters))]
         
         # We need two of each character
         pairs = selected_chars + selected_chars
         random.shuffle(pairs)
         
         # Calculate grid dimensions for card layout
-        grid_width = 4  # 4 cards across
-        grid_height = len(pairs) // grid_width
+        grid_width = 5  # 5 cards across to accommodate more cards
+        grid_height = math.ceil(len(pairs) / grid_width)
         
         # Calculate starting position for centering the grid
         start_x = (self.screen_size[0] - ((self.card_size[0] + self.padding) * grid_width - self.padding)) // 2

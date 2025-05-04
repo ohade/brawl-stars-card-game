@@ -1,7 +1,7 @@
 """Main module for the Brawl Stars themed memory card game."""
 import os
 import sys
-from typing import Tuple
+from typing import List, Tuple
 
 import pygame
 
@@ -32,12 +32,24 @@ class BrawlStarsMemoryGame:
         self.screen = pygame.display.set_mode(screen_size)
         self.clock = pygame.time.Clock()
         self.running = False
+        self.game_phase = "difficulty_select"
+        self.character_count = 5  # Default character count
         
         # Check if assets exist, otherwise create placeholders
         self._ensure_assets_exist()
         
-        # Create game manager after assets are created
-        self.game_manager = GameManager(screen_size)
+        # Create difficulty selector
+        from src.difficulty_selector import DifficultySelector
+        self.difficulty_selector = DifficultySelector(
+            self.screen,
+            min_characters=5,
+            max_characters=10,
+            on_select=self._start_game_with_character_count,
+            on_back=self._exit_to_menu
+        )
+        
+        # Game manager will be created after selecting difficulty
+        self.game_manager = None
     
     def _ensure_assets_exist(self) -> None:
         """Ensure necessary asset files exist, creating placeholders if needed."""
@@ -103,28 +115,72 @@ class BrawlStarsMemoryGame:
         # Save to file
         pygame.image.save(surface, path)
     
+    def _start_game_with_character_count(self, character_count: int) -> None:
+        """Start the game with the selected number of characters.
+        
+        Args:
+            character_count: Number of different characters to use in the game.
+        """
+        self.character_count = character_count
+        self.game_phase = "playing"
+        
+        # Create game manager with the selected character count
+        self.game_manager = GameManager(self.screen_size, character_count=self.character_count)
+    
+    def _exit_to_menu(self) -> None:
+        """Exit to the main menu."""
+        self.running = False
+        
     def run(self) -> None:
         """Run the main game loop."""
         self.running = True
         while self.running:
-            self._handle_events()
-            self._update()
+            events = pygame.event.get()
+            
+            if self.game_phase == "difficulty_select":
+                self._handle_difficulty_selection(events)
+            else:  # playing phase
+                self._handle_game_events(events)
+                self._update()
+            
             self._draw()
             self.clock.tick(60)  # 60 FPS
     
-    def _handle_events(self) -> None:
-        """Handle game events."""
-        for event in pygame.event.get():
+    def _handle_difficulty_selection(self, events: List[pygame.event.Event]) -> None:
+        """Handle events for the difficulty selection screen.
+        
+        Args:
+            events: List of pygame events to handle.
+        """
+        # Process quit events
+        for event in events:
+            if event.type == pygame.QUIT:
+                self.running = False
+        
+        # Let the difficulty selector handle its own events
+        self.difficulty_selector.handle_events(events)
+    
+    def _handle_game_events(self, events: List[pygame.event.Event]) -> None:
+        """Handle events for the game play screen.
+        
+        Args:
+            events: List of pygame events to handle.
+        """
+        for event in events:
             if event.type == pygame.QUIT:
                 self.running = False
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
-                    self.running = False
-                elif event.key == pygame.K_r and self.game_manager.game_over:
+                    # Return to difficulty selection
+                    self.game_phase = "difficulty_select"
+                elif event.key == pygame.K_r and self.game_manager and self.game_manager.game_over:
                     # Reset game if it's over
                     self.game_manager.reset()
+                elif event.key == pygame.K_m and self.game_manager and self.game_manager.game_over:
+                    # Return to difficulty selection when game is over
+                    self.game_phase = "difficulty_select"
             elif event.type == pygame.MOUSEBUTTONDOWN:
-                if event.button == 1:  # Left mouse button
+                if event.button == 1 and self.game_manager:  # Left mouse button
                     self.game_manager.handle_click(event.pos)
     
     def _update(self) -> None:
@@ -136,16 +192,26 @@ class BrawlStarsMemoryGame:
         # Clear the screen
         self.screen.fill((0, 128, 0))  # Dark green background
         
-        # Draw game elements
-        self.game_manager.draw(self.screen)
-        
-        # Game over message with restart instruction
-        if self.game_manager.game_over:
-            font = pygame.font.SysFont("Arial", 24)
-            restart_text = font.render("Press 'R' to play again", True, (255, 255, 255))
-            text_x = (self.screen_size[0] - restart_text.get_width()) // 2
-            text_y = (self.screen_size[1] + 200) // 2
-            self.screen.blit(restart_text, (text_x, text_y))
+        # Draw the appropriate interface based on game phase
+        if self.game_phase == "difficulty_select":
+            self.difficulty_selector.draw()
+        elif self.game_manager:
+            # Draw game elements
+            self.game_manager.draw(self.screen)
+            
+            # Game over message with restart instruction
+            if self.game_manager.game_over:
+                font = pygame.font.SysFont("Arial", 24)
+                restart_text = font.render("Press 'R' to play again", True, (255, 255, 255))
+                menu_text = font.render("Press 'M' to return to difficulty selection", True, (255, 255, 255))
+                
+                text_x = (self.screen_size[0] - restart_text.get_width()) // 2
+                text_y = (self.screen_size[1] + 200) // 2
+                self.screen.blit(restart_text, (text_x, text_y))
+                
+                menu_x = (self.screen_size[0] - menu_text.get_width()) // 2
+                menu_y = text_y + 40
+                self.screen.blit(menu_text, (menu_x, menu_y))
         
         # Update the display
         pygame.display.flip()
